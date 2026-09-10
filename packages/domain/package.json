@@ -1,0 +1,14 @@
+{
+  "name": "@roadwatch/domain",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsx --test src/*.test.ts"
+  },
+  "dependencies": {
+    "zod": "^4.5.4"
+  }
+}
