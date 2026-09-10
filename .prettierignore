@@ -1,0 +1,11 @@
+node_modules
+**/.next
+**/dist
+.local
+.venv
+.artifacts
+package-lock.json
+requirements*.lock
+playwright-report
+test-results
+**/next-env.d.ts

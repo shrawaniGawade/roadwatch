@@ -1,0 +1,33 @@
+{
+  "name": "roadwatch",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Road condition observation, evidence review and maintenance management",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build -w @roadwatch/domain && npm run build -w @roadwatch/storage && npm run build -w @roadwatch/api && npm run build -w @roadwatch/web",
+    "test": "npm run test -w @roadwatch/domain && npm run test -w @roadwatch/storage && npm run test -w @roadwatch/api && npm run test -w @roadwatch/automation",
+    "test:integration": "node --env-file=.env --import tsx --test --test-concurrency=1 tests/*.integration.test.ts tests/*.contract.test.ts",
+    "test:e2e": "playwright test",
+    "test:vision": ".venv/bin/python -m pytest services/vision/tests services/edge/tests",
+    "smoke:model": "node scripts/smoke-model.mjs",
+    "typecheck": "npm run build -w @roadwatch/domain && npm run build -w @roadwatch/storage && npm run build -w @roadwatch/api && npm run typecheck -w @roadwatch/web",
+    "db:start": "node scripts/database.mjs start",
+    "db:stop": "node scripts/database.mjs stop"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^24.10.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
