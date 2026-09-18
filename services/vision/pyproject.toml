@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools==82.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roadwatch-vision"
+version = "0.1.0"
+description = "Authenticated, bounded road-defect inference and calibrated geometry"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "fastapi==0.141.1", "uvicorn==0.52.4", "python-multipart==0.0.32",
+  "pydantic==2.13.5", "numpy==2.2.6", "opencv-python-headless==4.13.0.92",
+  "Pillow==12.3.0", "onnxruntime==1.24.3"
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.1.1", "httpx==0.28.1", "onnx==1.22.0"]
+train = ["rfdetr[train]==1.10.1"]
+
+[project.scripts]
+roadwatch-dataset = "roadwatch_vision.dataset:main"
+roadwatch-train = "roadwatch_vision.training:main"
+roadwatch-evaluate = "roadwatch_vision.evaluation:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
