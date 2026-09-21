@@ -1,0 +1,13 @@
+{
+  "name": "@roadwatch/automation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/worker.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  }
+}
