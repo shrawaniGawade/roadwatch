@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools==82.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roadwatch-edge"
+version = "0.1.0"
+description = "Durable bounded camera capture and authenticated RoadWatch device upload"
+requires-python = ">=3.12,<3.14"
+dependencies = ["httpx==0.28.1", "numpy==2.2.6", "opencv-python-headless==4.13.0.92"]
+
+[project.optional-dependencies]
+test = ["pytest==9.1.1"]
+
+[project.scripts]
+roadwatch-edge = "roadwatch_edge.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
