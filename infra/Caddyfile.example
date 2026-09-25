@@ -1,0 +1,12 @@
+# Install at the host or add a gateway container; replace with your real domain.
+# The Compose web port is bound only to host loopback.
+roads.example.org {
+  encode zstd gzip
+  request_body {
+    max_size 34MB
+  }
+  reverse_proxy 127.0.0.1:3000
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  }
+}

@@ -1,0 +1,18 @@
+FROM node:24-bookworm-slim AS build
+WORKDIR /workspace
+COPY . .
+RUN npm ci
+ARG API_ORIGIN=http://api:3001
+ENV API_ORIGIN=$API_ORIGIN
+ARG NEXT_PUBLIC_MAP_STYLE_URL=
+ENV NEXT_PUBLIC_MAP_STYLE_URL=$NEXT_PUBLIC_MAP_STYLE_URL
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build && npm prune --omit=dev
+
+FROM node:24-bookworm-slim AS runtime
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
+WORKDIR /workspace
+COPY --from=build --chown=node:node /workspace /workspace
+RUN mkdir -p /workspace/.local/media && chown node:node /workspace/.local/media
+USER node
+CMD ["node", "apps/api/dist/main.js"]
