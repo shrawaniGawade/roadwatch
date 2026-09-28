@@ -1,0 +1,56 @@
+name: Validate RoadWatch
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: roadwatch
+          POSTGRES_USER: roadwatch
+          POSTGRES_PASSWORD: ci-database-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U roadwatch -d roadwatch"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgresql://roadwatch:ci-database-only@127.0.0.1:5432/roadwatch
+      POSTGIS_REQUIRED: "true"
+      NODE_ENV: development
+      DEMO_SEED: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "24", cache: npm}
+      - uses: astral-sh/setup-uv@v6
+      - run: npm ci
+      - run: uv venv --python 3.12 .venv
+      - run: uv pip install --python .venv/bin/python --require-hashes -r requirements-dev.lock
+      - run: uv pip install --python .venv/bin/python --no-deps -e services/vision -e services/edge
+      - run: node scripts/setup.mjs --env-only
+      - run: npm run build
+      - run: npm test
+      - run: npm run test:vision
+      - run: npx playwright install --with-deps chromium
+      - name: Start local application
+        run: |
+          npm run dev > .local/application.log 2>&1 &
+          node scripts/wait-ready.mjs
+      - run: npm run test:integration
+      - run: npm run test:e2e
+      - run: npm audit --omit=dev --audit-level=high
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-evidence
+          path: |
+            playwright-report/
+            test-results/
+            .artifacts/screenshots/
+            .local/application.log
+          retention-days: 7
