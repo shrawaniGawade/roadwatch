@@ -32,7 +32,7 @@ S3, process management and remaining operational acceptance work.
 | Roads | Validated GeoJSON import, named assets, ownership/regions, 100m segments, coordinates, chainage and proximity checks |
 | Defects | Eight supported road-damage categories, manual and model observations, units, null unknown measurements, reasoned scheduling priority |
 | Evidence | Private media, SHA-256 verification, bounded uploads, local or S3 storage, authenticated playback and frame/mask provenance |
-| Detection | FastAPI + ONNX Runtime, YOLOv8 box/segmentation adapters, explicit custom ONNX contract, optional RF-DETR-Seg Small adapter |
+| Detection | FastAPI + ONNX Runtime; experimental RDD2022 RF-DETR Small box detector for four damage classes; other supported ONNX and optional segmentation adapters |
 | Capture | Browser camera/file upload; separate Python webcam/RTSP collector with durable SQLite spool, recovery and device authentication |
 | Geolocation | Calibration and synchronized trajectory geometry, unlocated-observation review, manual placement without invented accuracy |
 | Processing | Persisted leased jobs, retry budgets, checksum quarantine, idempotent upload/result commits, retained failures |
@@ -53,7 +53,7 @@ flowchart LR
   DB --> Jobs[Leased processing worker]
   Store --> Jobs
   Jobs --> Vision[FastAPI / ONNX / OpenCV]
-  Vision -->|Mask + measurements + provenance| Jobs
+  Vision -->|Observations + available measurements + provenance| Jobs
   Jobs --> DB
   DB --> Review[Human evidence and location review]
   Review --> Maintenance[Versioned maintenance workflow]
@@ -73,7 +73,43 @@ design study, not unused mandatory services. The implemented queue uses SQL leas
 and transaction fencing; lifecycle state is persisted in the database. This keeps
 the chosen operational stack concrete and testable.
 
-## Model setup
+## Current road model
+
+The deployed trial uses [dronefreak's RDD2022 RF-DETR Small checkpoint](https://huggingface.co/dronefreak/rdd2022-rfdetr-small),
+exported to ONNX and run locally on CPU. It detects **longitudinal cracks,
+transverse cracks, alligator cracks and potholes** as bounding boxes. It does not
+produce segmentation masks, defect coordinates, physical length, width, depth or
+area. Those remain unknown without calibrated geometry or documented field
+measurements. Reviewers can record field estimates on a defect record; area is
+then labeled as an estimated length × width bounding rectangle.
+
+| Item | Trial configuration or evidence |
+|---|---|
+| Upstream model | RF-DETR Small, trained by the checkpoint publisher with DetectionBench on RDD2022; 512 × 512 RGB input |
+| Pinned checkpoint | Hugging Face revision `f339aaa8f1b3e6b5fd51ba657465af0b3a67381d`; checkpoint SHA-256 `19e446593695f2ae4335114b6f5a419b06352b31ddda01c357ed4d3c0351f33b` |
+| Runtime artifact | `rfdetr-onnx` export; ONNX SHA-256 `fad0d5a1aabb025749ca48ee80721e99dfbba4b856f265fc805d8797cb8e2629`; score threshold 0.30 |
+| Publisher benchmark | RDD2022 held-out split: mAP@50 64.71%, mAP@50:95 35.73%, precision 65.69%, recall 59.41%. These are publisher results, **not RoadWatch field accuracy**. |
+| Rights | Model card reports Apache-2.0 for weights; [RDD2022 dataset card](https://huggingface.co/datasets/dronefreak/RDD2022) reports CC BY-SA 4.0 for imagery. Review rights for the intended deployment. |
+| Status | Experimental trial; human review and local-road validation required before operational decisions. |
+
+The publisher's test split is from publicly labeled images, not the official
+CRDDC2022 hidden challenge test set. Performance can shift across countries,
+cameras, lighting and thin cracks; the four-class model misses other road damage.
+The [checkpoint card](https://huggingface.co/dronefreak/rdd2022-rfdetr-small)
+contains per-class metrics and training details. See the [RDD2022 research
+paper](https://arxiv.org/abs/2209.08538) and the
+[IEEE Xplore reference supplied for this project](https://ieeexplore.ieee.org/abstract/document/11454862).
+The IEEE page could not be read from this environment, so its contents are not
+being treated as evidence for this specific checkpoint or its benchmark numbers.
+
+The ONNX artifact and provenance files are stored outside Git under
+`/opt/roadwatch/models/trial-rdd2022-rfdetr-small/` on the server. To activate it,
+set `CONTAINER_MODEL_MANIFEST=/models/trial-rdd2022-rfdetr-small/manifest.json`,
+`VISION_ALLOW_EXPERIMENTAL_MODEL=true` and `VISION_ALLOW_PRODUCTION_TRIAL=true`
+in the private Compose environment, then rebuild. The service verifies the
+artifact checksum and reports its model identity through `/api/v1/ready`.
+
+## Other model setup
 
 No downloaded model is silently treated as production approved. Without a manifest,
 inference returns an explicit HTTP 503 and preserves uploaded evidence for review/retry.
@@ -88,7 +124,8 @@ Set the printed manifest path as `VISION_MODEL_MANIFEST` and set
 `VISION_ALLOW_EXPERIMENTAL_MODEL=true` in the local `.env`; restart the application.
 The artifact's embedded AGPL-3.0 license conflicts with its publisher's MIT label,
 and its training dataset is not supplied. Read the
-[baseline notice](models/BASELINE-NOTICE.md). Production rejects experimental models.
+[baseline notice](models/BASELINE-NOTICE.md). Production requires a separate
+explicit trial opt-in for any experimental model.
 This one-class baseline does not recognize every defect class in the application.
 With the model enabled, `npm run smoke:model` verifies real inference through the
 web/API pipeline using an attributed public-domain photo. The result stays unlocated
