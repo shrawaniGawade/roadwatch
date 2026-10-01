@@ -989,6 +989,10 @@ export function JobObservations({
                   </div>
                 ))}
               </div>
+              <p className="body-copy">
+                Physical dimensions remain unknown without a scale or field measurement. A reviewer
+                can add documented estimates on the defect review page.
+              </p>
               {defectId ? (
                 <div className="located-success">
                   <ShieldCheck size={25} />

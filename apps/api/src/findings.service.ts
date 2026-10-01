@@ -154,6 +154,72 @@ export class FindingsService {
       return defect;
     });
   }
+  async recordMeasurements(actor: Principal, id: string, body: unknown) {
+    requireRole(actor, 'admin', 'reviewer');
+    identifier(id);
+    const input = parse(
+      z
+        .object({
+          expectedVersion: z.number().int().positive(),
+          lengthM: z.number().finite().positive().max(1000).optional(),
+          widthM: z.number().finite().positive().max(100).optional(),
+          depthMm: z.number().finite().positive().max(3000).optional(),
+          note: z.string().trim().min(5).max(2000),
+        })
+        .strict()
+        .refine(
+          (v) => v.lengthM !== undefined || v.widthM !== undefined || v.depthMm !== undefined,
+          {
+            message: 'Enter at least one field estimate.',
+          },
+        ),
+      body,
+    );
+    return this.db.tx(async (c) => {
+      const d = await this.assets.get(actor, 'defects', id, c, true);
+      if (d.version !== input.expectedVersion) conflict();
+      if (d.status === 'closed' || d.status === 'rejected')
+        throw new ConflictException('Reopen this defect before recording field estimates.');
+      if (input.lengthM !== undefined)
+        d.length = estimatedMeasurement(input.lengthM, 'm', 'reviewer_field_estimate');
+      if (input.widthM !== undefined)
+        d.width = estimatedMeasurement(input.widthM, 'm', 'reviewer_field_estimate');
+      if (input.depthMm !== undefined)
+        d.depth = estimatedMeasurement(input.depthMm, 'mm', 'reviewer_field_estimate');
+      d.area =
+        d.length.value != null && d.width.value != null
+          ? estimatedMeasurement(
+              d.length.value * d.width.value,
+              'm2',
+              'manual_bounding_rectangle_estimate',
+            )
+          : unknownMeasurement('m2');
+      const settings = await this.assets.settings(actor, c);
+      const priorityInputs = (d as typeof d & { priorityInputs?: PriorityInput }).priorityInputs;
+      d.assessment = assessmentFor(
+        { ...priorityInputs, type: d.type, depthMm: d.depth.value ?? undefined },
+        settings,
+      );
+      d.priority = d.assessment.priority;
+      d.severity = d.assessment.severity;
+      d.version++;
+      d.updatedAt = now();
+      await c.query('UPDATE defects SET version=$3,data=$4 WHERE tenant_id=$1 AND id=$2', [
+        actor.tenantId,
+        id,
+        d.version,
+        JSON.stringify(d),
+      ]);
+      await audit(c, actor, 'defect.measurements_estimated', 'defect', id, {
+        note: input.note,
+        version: d.version,
+        values: { lengthM: input.lengthM, widthM: input.widthM, depthMm: input.depthMm },
+        method: 'reviewer_field_estimate',
+        verified: false,
+      });
+      return d;
+    });
+  }
   async review(actor: Principal, id: string, body: unknown) {
     requireRole(actor, 'admin', 'reviewer');
     identifier(id);

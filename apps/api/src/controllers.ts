@@ -233,6 +233,13 @@ export class FindingsController {
   @Post('defects') create(@Req() r: AuthedRequest, @Body() b: unknown) {
     return this.findings.create(r.actor, b);
   }
+  @Post('defects/:id/measurements') measurements(
+    @Req() r: AuthedRequest,
+    @Param('id') id: string,
+    @Body() b: unknown,
+  ) {
+    return this.findings.recordMeasurements(r.actor, id, b);
+  }
   @Post('defects/:id/reviews') review(
     @Req() r: AuthedRequest,
     @Param('id') id: string,

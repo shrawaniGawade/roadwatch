@@ -1074,6 +1074,27 @@ function Defects({
       setBusy(false);
     }
   }
+  async function recordMeasurements(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!current) return;
+    const form = new FormData(event.currentTarget);
+    setBusy(true);
+    setError('');
+    try {
+      await write(`/defects/${current.id}/measurements`, {
+        expectedVersion: current.version,
+        lengthM: numeric(form, 'lengthM'),
+        widthM: numeric(form, 'widthM'),
+        depthMm: numeric(form, 'depthMm'),
+        note: textField(form, 'measurementNote'),
+      });
+      await changed(`Field estimates saved for ${current.code}.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Field estimates could not be saved.');
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="review-layout">
       <section className="content-panel defect-browser">
@@ -1182,10 +1203,70 @@ function Defects({
               <MeasurementValue title="Area" measurement={current.area} />
             </div>
             <div className="measurement-note">
-              <ShieldCheck size={15} />
-              Measurement quality is independent of detection confidence.
+              <ShieldCheck size={15} />A photo without a known scale cannot give reliable physical
+              dimensions. Depth needs field or 3D measurement. Detection confidence does not measure
+              size.
             </div>
           </div>
+          {canReview && ['candidate', 'confirmed'].includes(current.status) && (
+            <form
+              className="review-form"
+              onSubmit={recordMeasurements}
+              key={`measure-${current.id}-${current.version}`}
+            >
+              <h3>Add field estimates</h3>
+              <p>
+                Enter only dimensions checked at the road. Values stay marked estimated until
+                independently verified. Area is an estimated length × width rectangle.
+              </p>
+              <div className="form-grid">
+                <Field label="Length (m)">
+                  <input
+                    name="lengthM"
+                    type="number"
+                    step="any"
+                    min="0.001"
+                    max="1000"
+                    placeholder="Unknown"
+                  />
+                </Field>
+                <Field label="Width (m)">
+                  <input
+                    name="widthM"
+                    type="number"
+                    step="any"
+                    min="0.001"
+                    max="100"
+                    placeholder="Unknown"
+                  />
+                </Field>
+                <Field label="Depth (mm)">
+                  <input
+                    name="depthMm"
+                    type="number"
+                    step="any"
+                    min="0.1"
+                    max="3000"
+                    placeholder="Unknown"
+                  />
+                </Field>
+                <Field label="How were these values estimated?" wide>
+                  <textarea
+                    name="measurementNote"
+                    minLength={5}
+                    maxLength={2000}
+                    rows={2}
+                    required
+                    placeholder="Describe the field measurement or reference used…"
+                  />
+                </Field>
+              </div>
+              <ErrorMessage>{error}</ErrorMessage>
+              <div className="form-actions">
+                <Submit busy={busy}>Save field estimates</Submit>
+              </div>
+            </form>
+          )}
           <div className="detail-section two-column">
             <div>
               <h3>Location & provenance</h3>

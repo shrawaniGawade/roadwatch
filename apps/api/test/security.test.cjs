@@ -4,7 +4,12 @@ const { hashPassword, checkPassword, digest } = require('../dist/credentials');
 const { validateOrigin, requireRole } = require('../dist/security');
 const { csvCell } = require('../dist/utils');
 const { mediaType } = require('../dist/media.service');
-const { assessmentFor, priorityPolicySchema } = require('../dist/findings.service');
+const {
+  assessmentFor,
+  priorityPolicySchema,
+  FindingsService,
+} = require('../dist/findings.service');
+const { unknownMeasurement } = require('@roadwatch/domain');
 
 test('password hashes have independent salts and reject wrong/corrupt credentials', async () => {
   const one = await hashPassword('a long test password'),
@@ -61,4 +66,49 @@ test('validated priority defaults change assessment while retaining assumed prov
   assert.equal(high.components.find((c) => c.key === 'exposure').assumed, true);
   assert.equal(priorityPolicySchema.safeParse({ arbitraryWeight: 999 }).success, false);
   assert.equal(priorityPolicySchema.safeParse({ defaultTrafficExposure: -1 }).success, false);
+});
+test('reviewer field estimates preserve unknown depth, derive estimated area, and audit changes', async () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  const actor = { id, tenantId: id, role: 'reviewer', email: 'reviewer@example.test' };
+  const defect = {
+    id,
+    version: 1,
+    status: 'candidate',
+    type: 'pothole',
+    length: unknownMeasurement('m'),
+    width: unknownMeasurement('m'),
+    depth: unknownMeasurement('mm'),
+    area: unknownMeasurement('m2'),
+  };
+  const queries = [];
+  const client = {
+    query: async (sql, args) => {
+      queries.push({ sql, args });
+      return { rows: [] };
+    },
+  };
+  const service = new FindingsService(
+    { tx: async (callback) => callback(client) },
+    { get: async () => defect, settings: async () => ({ version: 1 }) },
+  );
+  const updated = await service.recordMeasurements(actor, id, {
+    expectedVersion: 1,
+    lengthM: 2,
+    widthM: 0.5,
+    note: 'Tape estimate at site',
+  });
+  assert.equal(updated.length.status, 'estimated');
+  assert.equal(updated.width.status, 'estimated');
+  assert.equal(updated.area.value, 1);
+  assert.equal(updated.area.status, 'estimated');
+  assert.equal(updated.depth.value, null);
+  assert.equal(updated.version, 2);
+  assert.ok(queries.some(({ sql }) => sql.startsWith('INSERT INTO audit')));
+  await assert.rejects(
+    service.recordMeasurements(actor, id, {
+      expectedVersion: 1,
+      depthMm: 20,
+      note: 'Measured at site',
+    }),
+  );
 });
