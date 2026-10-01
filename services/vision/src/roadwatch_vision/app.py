@@ -61,7 +61,8 @@ def create_app(settings=None):
 
     def configured_manifest():
         manifest,artifact=load_manifest(settings.manifest_path)
-        if manifest.validationStatus=="experimental" and (not settings.allow_experimental or os.getenv("NODE_ENV")=="production"):
+        if manifest.validationStatus=="experimental" and (not settings.allow_experimental or
+            (os.getenv("NODE_ENV")=="production" and os.getenv("VISION_ALLOW_PRODUCTION_TRIAL")!="true")):
             raise ValueError("experimental_model_not_enabled")
         signature=(manifest.sha256,manifest.format,manifest.model_dump_json(),artifact.stat().st_mtime_ns)
         if signature not in runtime_checked:

@@ -88,9 +88,17 @@ rules must never expire still-referenced evidence independently of database poli
 
 The service starts without a model but returns HTTP 503 for inference until configured.
 The optional downloaded YOLOv8n baseline is experimental and pothole-only; production
-rejects it. Its license conflict and missing training provenance are recorded in
+rejects experimental artifacts by default. Its license conflict and missing training provenance are recorded in
 `models/BASELINE-NOTICE.md`. Train and approve a model using the vision tools and local
 held-out data. Approval is an engineering release process, not a magic manifest flag.
+
+For an explicitly authorized production trial, mount a checksummed model and manifest
+under `models/`, set `CONTAINER_MODEL_MANIFEST` to its `/models/.../manifest.json` path,
+and set both `VISION_ALLOW_EXPERIMENTAL_MODEL=true` and
+`VISION_ALLOW_PRODUCTION_TRIAL=true` in the private Compose environment file. The UI
+labels every result experimental. These flags do not make a model field validated.
+The RF-DETR ONNX detection adapter supports four RDD2022 road classes but returns
+boxes, not measured defect footprints; length, area and depth remain unknown.
 
 Ordinary RGB can supply visual observations. Physical length/area need validated
 calibration and visibility; depth needs stereo/3D or an independent field measurement.

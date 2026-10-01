@@ -74,6 +74,14 @@ def test_production_rejects_experimental_even_when_enabled(onnx_manifest,monkeyp
     assert client(onnx_manifest).get("/ready").status_code==503
 
 
+def test_production_trial_requires_both_explicit_flags(onnx_manifest,monkeypatch):
+    monkeypatch.setenv("NODE_ENV","production")
+    monkeypatch.setenv("VISION_ALLOW_PRODUCTION_TRIAL","true")
+    assert client(onnx_manifest).get("/ready").status_code==200
+    with pytest.raises(ValueError,match="experimental_model_not_enabled"):
+        load_model(onnx_manifest,False)
+
+
 def test_bound_request_and_metadata_validation(onnx_manifest):
     c=client(onnx_manifest,max_upload_bytes=1024)
     response=c.post("/v1/analyze",headers={"X-Service-Key":KEY,"Content-Length":"99999999"},content=b"x")

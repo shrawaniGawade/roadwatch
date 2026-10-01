@@ -14,7 +14,7 @@ export VISION_SERVICE_KEY='use-a-long-random-service-secret'
 .venv/bin/uvicorn roadwatch_vision.app:app --host 127.0.0.1 --port 8001
 ```
 
-Configure a model by setting `VISION_MODEL_MANIFEST` to an absolute JSON path. Experimental artifacts are disabled unless `VISION_ALLOW_EXPERIMENTAL_MODEL=true`. **`NODE_ENV=production` rejects experimental models even if that flag is set.** Setting a manifest to `field_validated` is an operator assertion requiring the independent acceptance evidence specified in the project report; it is not a transformation that improves a model.
+Configure a model by setting `VISION_MODEL_MANIFEST` to an absolute JSON path. Experimental artifacts are disabled unless `VISION_ALLOW_EXPERIMENTAL_MODEL=true`. In production, a separate `VISION_ALLOW_PRODUCTION_TRIAL=true` flag is also required. The UI labels these results experimental and requires review; the flags do not establish field validation. Setting a manifest to `field_validated` is an operator assertion requiring the independent acceptance evidence specified in the project report; it is not a transformation that improves a model.
 
 `POST /v1/analyze` uses multipart `file` and `metadata` (a JSON string), with `X-Service-Key`. The service authenticates before multipart parsing, limits uploaded bytes, limits pixels/video duration/frames, permits only known media signatures, serializes bounded inference capacity, decodes local files in short-lived subprocesses, and kills overdue workers. No submitted URL is fetched. It supports JPEG, PNG, single-frame WebP, MP4, WebM and AVI. API ingestion may accept a narrower list.
 
@@ -51,6 +51,7 @@ Supported formats:
 * `yolov8-onnx`: raw box-only YOLOv8 float output `[1,4+C,N]`. Uses RGB letterbox, class-specific NMS and inverse coordinate mapping. Returns **empty masks and unknown dimensions**, because boxes are not measured footprints.
 * `yolov8-seg-onnx`: raw detections `[1,4+C+M,N]` plus prototypes `[1,M,Hm,Wm]`; coefficients are combined with prototypes, cropped to proposals and unletterboxed. Instance masks with multiple components/holes retain a display outline but **withhold metric geometry** pending review.
 * `rfdetr-seg-small`: optional `rfdetr` package with explicitly installed, operator-trusted, checksummed local trained checkpoint. Only the Apache-designated RF-DETR-Seg Small variant is selected. The checkpoint's class names must match the manifest exactly. Its training/runtime dependencies are optional; do not expose arbitrary checkpoint upload. PyTorch checkpoints require the upstream safe-loading policy and trusted provenance.
+* `rfdetr-onnx`: RF-DETR detection export with fixed float32 `[1,3,H,W]` ImageNet-normalized RGB input and named `dets` normalized `cxcywh` plus `labels` logits outputs. The final logit is background. Returns classed boxes without masks or measured footprints; field review remains mandatory.
 
 The repository's optional downloaded baseline, if root tooling provisions one, is experimental. Its dataset provenance and accuracy may be unknown, and its embedded weight license may differ from its repository card. Check that local provenance record. Runtime success is not an accuracy or commercial-license approval.
 

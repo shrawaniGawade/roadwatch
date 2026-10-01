@@ -19,6 +19,8 @@ services:
       NODE_ENV: production
       VISION_SERVICE_KEY: ${VISION_SERVICE_KEY:?Set a service key}
       VISION_MODEL_MANIFEST: ${CONTAINER_MODEL_MANIFEST:-}
+      VISION_ALLOW_EXPERIMENTAL_MODEL: ${VISION_ALLOW_EXPERIMENTAL_MODEL:-false}
+      VISION_ALLOW_PRODUCTION_TRIAL: ${VISION_ALLOW_PRODUCTION_TRIAL:-false}
     volumes: ["./models:/models:ro"]
     read_only: true
     tmpfs: ["/tmp:size=512m,mode=1777"]

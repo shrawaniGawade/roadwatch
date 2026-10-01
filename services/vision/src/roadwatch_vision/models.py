@@ -11,7 +11,7 @@ from .schema import CLASSES, StrictModel
 
 class ModelManifest(StrictModel):
     schemaVersion: Literal[1]
-    format: Literal["roadwatch-onnx-v1", "rfdetr-seg-small", "yolov8-onnx", "yolov8-seg-onnx"]
+    format: Literal["roadwatch-onnx-v1", "rfdetr-seg-small", "rfdetr-onnx", "yolov8-onnx", "yolov8-seg-onnx"]
     name: str = Field(min_length=1,max_length=100)
     version: str = Field(min_length=1,max_length=100)
     artifact: str
@@ -130,6 +130,54 @@ class RFDetrRoadModel:
                                   detection.class_id,detection.mask,self.manifest,image.shape)
 
 
+class RFDetrOnnxModel:
+    """CPU-only RF-DETR box detector; boxes are not measured road footprints."""
+    def __init__(self,manifest,artifact):
+        import onnxruntime as ort
+        options=ort.SessionOptions(); options.intra_op_num_threads=2; options.inter_op_num_threads=1
+        self.session=ort.InferenceSession(str(artifact),sess_options=options,providers=["CPUExecutionProvider"])
+        self.manifest=manifest
+        inputs=self.session.get_inputs(); outputs={o.name:o for o in self.session.get_outputs()}
+        if len(inputs)!=1 or inputs[0].type!="tensor(float)" or inputs[0].shape!=[1,3,*manifest.inputSize]:
+            raise ValueError("rfdetr_input_contract_mismatch")
+        if set(outputs)!={"dets","labels"} or outputs["dets"].shape[:1]!=[1] or outputs["labels"].shape[:1]!=[1]:
+            raise ValueError("rfdetr_output_contract_mismatch")
+        if outputs["dets"].shape[-1]!=4 or outputs["labels"].shape[-1]!=len(manifest.classes)+1:
+            raise ValueError("rfdetr_class_or_box_count_mismatch")
+        self.input_name=inputs[0].name
+
+    def predict(self,image):
+        height,width=image.shape[:2]; target_h,target_w=self.manifest.inputSize
+        # RF-DETR export expects bilinear resize without antialiasing and ImageNet normalization.
+        rgb=cv2.cvtColor(image,cv2.COLOR_BGR2RGB).astype(np.float32)/255
+        resized=cv2.resize(rgb,(target_w,target_h),interpolation=cv2.INTER_LINEAR)
+        mean=np.asarray(self.manifest.mean,dtype=np.float32)
+        std=np.asarray(self.manifest.std,dtype=np.float32)
+        tensor=((resized-mean)/std).transpose(2,0,1)[None].copy()
+        boxes,logits=self.session.run(["dets","labels"],{self.input_name:tensor})
+        classes=len(self.manifest.classes)
+        if (boxes.ndim!=3 or logits.ndim!=3 or boxes.shape[0]!=1 or
+            boxes.shape[2]!=4 or logits.shape!=(1,boxes.shape[1],classes+1) or
+            boxes.shape[1]>1000 or not np.isfinite(boxes).all() or not np.isfinite(logits).all()):
+            raise ValueError("invalid_rfdetr_output")
+        # The final logit is background; RF-DETR ranks query/class pairs independently.
+        scores=1/(1+np.exp(-np.clip(logits[0,:,:classes],-88,88)))
+        ranked=np.argsort(scores.reshape(-1))[::-1][:min(boxes.shape[1],100)]
+        result=[]
+        for flat_index in ranked:
+            query_id,class_id=divmod(int(flat_index),classes)
+            score=float(scores[query_id,class_id])
+            if score<self.manifest.threshold: break
+            cx,cy,bw,bh=map(float,boxes[0,query_id])
+            x1=max(0,min(width,(cx-bw/2)*width)); y1=max(0,min(height,(cy-bh/2)*height))
+            x2=max(0,min(width,(cx+bw/2)*width)); y2=max(0,min(height,(cy+bh/2)*height))
+            if x2<=x1 or y2<=y1: continue
+            result.append({"type":self.manifest.classes[class_id],"confidence":score,
+                           "bbox":[x1,y1,x2,y2],"mask":[],"geometryEligible":False,
+                           "measurementReason":"box_only_model_no_measured_footprint"})
+        return result
+
+
 class YoloV8OnnxModel:
     """Independent raw YOLOv8 box decoder. No segmentation or metric-size claim."""
     def __init__(self,manifest,artifact):
@@ -242,6 +290,9 @@ class YoloV8SegOnnxModel:
 
 def load_model(path,allow_experimental=False):
     manifest,artifact=load_manifest(path)
-    if manifest.validationStatus=="experimental" and (not allow_experimental or os.getenv("NODE_ENV")=="production"):
+    if manifest.validationStatus=="experimental" and (not allow_experimental or
+        (os.getenv("NODE_ENV")=="production" and os.getenv("VISION_ALLOW_PRODUCTION_TRIAL")!="true")):
         raise ValueError("experimental_model_not_enabled")
-    return {"roadwatch-onnx-v1":OnnxRoadModel,"rfdetr-seg-small":RFDetrRoadModel,"yolov8-onnx":YoloV8OnnxModel,"yolov8-seg-onnx":YoloV8SegOnnxModel}[manifest.format](manifest,artifact)
+    return {"roadwatch-onnx-v1":OnnxRoadModel,"rfdetr-seg-small":RFDetrRoadModel,
+            "rfdetr-onnx":RFDetrOnnxModel,"yolov8-onnx":YoloV8OnnxModel,
+            "yolov8-seg-onnx":YoloV8SegOnnxModel}[manifest.format](manifest,artifact)
