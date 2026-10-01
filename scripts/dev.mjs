@@ -16,6 +16,8 @@ for (const workspace of ['@roadwatch/domain', '@roadwatch/storage', '@roadwatch/
   if (spawnSync('npm', ['run', 'build', '-w', workspace], { stdio: 'inherit' }).status !== 0)
     process.exit(1);
 }
+if (spawnSync('npm', ['run', 'predev', '-w', '@roadwatch/web'], { stdio: 'inherit' }).status !== 0)
+  process.exit(1);
 const children = [];
 let closing = false;
 function shutdown(code = 0) {

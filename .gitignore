@@ -1,5 +1,6 @@
 node_modules/
 .next/
+apps/web/public/maplibre/
 dist/
 .env
 .env.*.local

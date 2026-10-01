@@ -65,9 +65,10 @@ export default function RoadMap({
     if (!container.current) return;
     let disposed = false;
     void import('maplibre-gl')
-      .then(({ Map }) => {
+      .then(({ Map, setWorkerUrl }) => {
         if (disposed || !container.current) return;
         try {
+          setWorkerUrl('/maplibre/maplibre-gl-worker.mjs');
           const tileUrl = process.env.NEXT_PUBLIC_MAP_STYLE_URL;
           const instance = new Map({
             container: container.current,

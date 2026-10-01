@@ -9,9 +9,9 @@
     "test": "node --test test/*.test.cjs"
   },
   "dependencies": {
-    "@nestjs/common": "^11.1.6",
-    "@nestjs/core": "^11.1.6",
-    "@nestjs/platform-express": "^11.1.6",
+    "@nestjs/common": "^11.2.7",
+    "@nestjs/core": "^11.2.7",
+    "@nestjs/platform-express": "^11.2.7",
     "@roadwatch/domain": "*",
     "@roadwatch/storage": "*",
     "cookie-parser": "^1.4.7",
