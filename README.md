@@ -79,8 +79,8 @@ The deployed trial uses [dronefreak's RDD2022 RF-DETR Small checkpoint](https://
 exported to ONNX and run locally on CPU. It detects **longitudinal cracks,
 transverse cracks, alligator cracks and potholes** as bounding boxes. It does not
 produce segmentation masks, defect coordinates, physical length, width, depth or
-area. Those remain unknown without calibrated geometry or documented field
-measurements. Reviewers can record field estimates on a defect record; area is
+area. This box-only adapter cannot derive dimensions even from a camera
+calibration. Reviewers can record documented field estimates on a defect record; area is
 then labeled as an estimated length × width bounding rectangle.
 
 | Item | Trial configuration or evidence |
