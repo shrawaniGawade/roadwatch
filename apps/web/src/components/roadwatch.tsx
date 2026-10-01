@@ -1614,6 +1614,7 @@ function Surveys({
     accuracy: number;
   } | null>(null);
   const [locationError, setLocationError] = useState('');
+  const [locationPending, setLocationPending] = useState(false);
   const loadJobs = useCallback(async () => {
     try {
       setJobs(await api<ProcessingJob[]>('/jobs'));
@@ -1695,18 +1696,47 @@ function Surveys({
   }
   function getLocation() {
     setLocationError('');
+    setCaptureCoords(null);
     if (!navigator.geolocation) {
-      setLocationError('Geolocation is unavailable in this browser.');
+      setLocationError(
+        'This browser cannot access device location. You can upload without it and place the observation during review.',
+      );
       return;
     }
+    setLocationPending(true);
+    const acceptPosition = (position: GeolocationPosition) => {
+      const { latitude, longitude, accuracy } = position.coords;
+      if (
+        ![latitude, longitude, accuracy].every(Number.isFinite) ||
+        accuracy <= 0 ||
+        accuracy > 10000
+      ) {
+        setLocationError(
+          'The device location is too imprecise to use. You can upload without it and place the observation during review.',
+        );
+      } else {
+        setCaptureCoords({ latitude, longitude, accuracy });
+      }
+      setLocationPending(false);
+    };
+    const showError = (error: GeolocationPositionError) => {
+      setLocationError(
+        error.code === 1
+          ? 'Location permission is blocked. Allow location for this site in your browser and device settings, then try again.'
+          : 'The device could not determine a position. Check Location Services and Wi-Fi, or upload without coordinates and place the observation during review.',
+      );
+      setLocationPending(false);
+    };
     navigator.geolocation.getCurrentPosition(
-      (position) =>
-        setCaptureCoords({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-        }),
-      (e) => setLocationError(`Location unavailable: ${e.message}`),
+      acceptPosition,
+      (error) => {
+        if (error.code === 1) return showError(error);
+        navigator.geolocation.getCurrentPosition(acceptPosition, showError, {
+          enableHighAccuracy: false,
+          timeout: 20000,
+          maximumAge: 0,
+        });
+      },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   }
@@ -1850,9 +1880,14 @@ function Surveys({
               </Field>
             </div>
             <div className="capture-location">
-              <button className="button secondary" type="button" onClick={getLocation}>
+              <button
+                className="button secondary"
+                type="button"
+                onClick={getLocation}
+                disabled={locationPending}
+              >
                 <Navigation size={15} />
-                Use this device’s location
+                {locationPending ? 'Finding location…' : 'Use this device’s location'}
               </button>
               <span>
                 {captureCoords
